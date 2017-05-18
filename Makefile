@@ -8,7 +8,7 @@ SERVER_OBJS =
 SERVER_BIN = siktacka-server
 SERVER_C = server.c
 
-COMMON_OBJS = parser.o err.o
+COMMON_OBJS = parser.o err.o rng.o
 
 all: $(CLIENT_BIN) $(SERVER_BIN)
 

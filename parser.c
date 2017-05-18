@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE
 #include <errno.h>
 #include <getopt.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,8 +14,9 @@
 
 static void get_host_port(const char *str, char *host, int *port);
 static int get_port(const char *str);
-static int get_number(const char *str, const char *what);
 static int get_positive(const char *str, const char *what);
+static int get_number(const char *str, const char *what);
+static uint64_t get_number64(const char *str, const char *what);
 
 void parse_server_arguments(int argc, char * const argv[], struct server_config *config)
 {
@@ -37,7 +39,7 @@ void parse_server_arguments(int argc, char * const argv[], struct server_config 
 			config->turning_speed = get_positive(optarg, "turning speed");
 			break;
 		case 'r':
-			config->seed = get_number(optarg, "seed");
+			config->seed = get_number64(optarg, "seed");
 			break;
 		default:
 			die("Unknown parameter");
@@ -94,6 +96,17 @@ static int get_number(const char *str, const char *what)
 	char *endptr;
 	errno = 0;
 	int number = strtol(str, &endptr, 10);
+	if (*endptr != '\0' || errno != 0)
+		die("Incorrect %s value", what);
+	return number;
+
+}
+
+static uint64_t get_number64(const char *str, const char *what)
+{
+	char *endptr;
+	errno = 0;
+	uint64_t number = strtoll(str, &endptr, 10);
 	if (*endptr != '\0' || errno != 0)
 		die("Incorrect %s value", what);
 	return number;
