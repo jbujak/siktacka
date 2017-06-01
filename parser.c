@@ -50,7 +50,7 @@ void parse_server_arguments(int argc, char * const argv[], struct server_config 
 void parse_client_arguments(int argc, char * const argv[], struct client_config *config) 
 {
 	if(argc < 2 || argc > 3)
-		die("Invalid number of parameters");
+		die("Invalid number of parameters\nUsage: %s player_name game_server_host[:port] [ui_server_host[:port]]", argv[0]);
 	if(strlen(argv[1]) > MAX_HOST_LENGTH)
 		die("Game server host name too long");
 

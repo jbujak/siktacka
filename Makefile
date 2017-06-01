@@ -12,6 +12,7 @@ SERVER_C = server.c
 COMMON_OBJS = parser.o err.o rng.o
 
 all: $(CLIENT_BIN) $(SERVER_BIN)
+	ctags -R .
 
 $(CLIENT_BIN): $(CLIENT_OBJS) $(COMMON_OBJS) $(CLIENT_C)
 	gcc -c $(CLIENT_C) -o client.o

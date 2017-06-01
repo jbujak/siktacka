@@ -5,4 +5,6 @@
 
 void die(const char *format, ...);
 
+void handle_error(int ret, const char *format, ...);
+
 #endif /* ERR_H */
