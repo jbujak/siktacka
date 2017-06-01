@@ -8,6 +8,13 @@
 #include "server.h"
 #include "parser.h"
 #include "rng.h"
+#include "map.h"
+
+#define DEFAULT_WIDTH 800
+#define DEFAULT_HEIGHT 600
+#define DEFAULT_PORT 12345
+#define DEFAULT_ROUDS_PER_SEC 50
+#define DEFAULT_TURNING_SPEED 6
 
 static struct server_config config = (struct server_config) {
 	.width = DEFAULT_WIDTH,

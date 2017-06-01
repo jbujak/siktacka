@@ -5,12 +5,7 @@
 #define MAX_NAME_LENGTH 64
 #define MIN_NAME_CHAR 33
 #define MAX_NAME_CHAR 126
-
 #define MAX_HOST_LENGTH 60
-
-#define DEFAULT_GAME_SERVER_PORT 12345
-#define DEFAULT_UI_SERVER_NAME "localhost"
-#define DEFAULT_UI_SERVER_PORT 12346
 
 struct client_config {
 	char player_name[MAX_NAME_LENGTH];

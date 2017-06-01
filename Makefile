@@ -1,10 +1,11 @@
 CFLAGS = -g -Wall -Wextra -O2 -std=c11
+CXXFLAGS = -g -Wall -Wextra -O2 -std=c++14
 
-CLIENT_OBJS = 
+CLIENT_OBJS = map.opp
 CLIENT_BIN = siktacka-client
 CLIENT_C = client.c
 
-SERVER_OBJS = 
+SERVER_OBJS = map.opp
 SERVER_BIN = siktacka-server
 SERVER_C = server.c
 
@@ -13,14 +14,20 @@ COMMON_OBJS = parser.o err.o rng.o
 all: $(CLIENT_BIN) $(SERVER_BIN)
 
 $(CLIENT_BIN): $(CLIENT_OBJS) $(COMMON_OBJS) $(CLIENT_C)
-	gcc $(CLIENT_C) $(CLIENT_OBJS) $(COMMON_OBJS) -o $(CLIENT_BIN) $(CFLAGS)
+	gcc -c $(CLIENT_C) -o client.o
+	g++ $(CXXFLAGS) client.o $(CLIENT_OBJS) $(COMMON_OBJS) -o $(CLIENT_BIN)
 
-$(SERVER_BIN): $(SERVER_OBJS $(COMMON_OBJS)) $(SERVER_C)
-	gcc $(SERVER_C) $(SERVER_OBJS) $(COMMON_OBJS) -o $(SERVER_BIN) $(CFLAGS)
+$(SERVER_BIN): $(SERVER_OBJS) $(COMMON_OBJS) $(SERVER_C)
+	gcc -c $(SERVER_C) -o server.o
+	g++ $(CXXFLAGS) server.o $(SERVER_OBJS) $(COMMON_OBJS) -o $(SERVER_BIN)
 
 %.o: %.c %.h
 	gcc $*.c -c $(CFLAGS)
 
+%.opp: %.cpp %.h
+	g++ $*.cpp -c $(CXXFLAGS) -o $*.opp
+
 clean:
 	-rm -f *.o
+	-rm -f *.opp
 	-rm -f $(CLIENT_BIN) $(SERVER_BIN)
