@@ -1,35 +1,39 @@
 #define _DEFAULT_SOURCE
-#include <stdio.h>
-#include <unistd.h>
-
-
 #include <arpa/inet.h>
-#include "client.h"
-#include "common.h"
 #include <ctype.h>
 #include <endian.h>
-#include "err.h"
-#include "gui_client.h"
 #include <inttypes.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include "parser.h"
+#include <poll.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
-#include <time.h>
 #include <unistd.h>
+
+#include "client.h"
+#include "common.h"
+#include "err.h"
+#include "gui_client.h"
+#include "parser.h"
 
 #define DEFAULT_GAME_SERVER_PORT 12345
 #define DEFAULT_UI_SERVER_NAME "localhost"
 #define DEFAULT_UI_SERVER_PORT 12346
 
 #define TIMEOUT_NS 3000000000
+#define USECS_PER_SEC 1000000
+
+#define LEFT_KEY_DOWN "LEFT_KEY_DOWN\n"
+#define LEFT_KEY_UP "LEFT_KEY_UP\n"
+#define RIGHT_KEY_DOWN "RIGHT_KEY_DOWN\n"
+#define RIGHT_KEY_UP "RIGHT_KEY_UP\n"
 
 static struct client_config config = (struct client_config) {
 	.player_name = "",
@@ -39,30 +43,44 @@ static struct client_config config = (struct client_config) {
 	.ui_server_port = DEFAULT_UI_SERVER_PORT
 };
 
+static struct client_msg state = (struct client_msg) {
+	.session_id = 0,
+	.turn_direction = 0,
+	.next_expected_event_no = 0,
+	.player_name = ""
+};
+
 static int gui_socket;
 static int server_socket;
 struct sockaddr_in server;
+static char buf[1000000];
 
 static void init();
 static void prepare_server();
 static void handler(int sig, siginfo_t *si, void *uc);
 static void prepare_timer();
+static void receive_messages();
+static void handle_gui_message(char *buf);
 
 int main(int argc, char * const argv[]) {
 	parse_client_arguments(argc, argv, &config);
-	printf("%s:%d\n", config.game_server, config.game_server_port);
 	init();
+	receive_messages();
 
 	return 0;
 }
 
 static void init() {
-	//gui_socket = gui_init(config.ui_server_port, config.ui_server);
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+	state.session_id = tv.tv_usec;
+	state.session_id += tv.tv_sec * USECS_PER_SEC;
+	strcpy(state.player_name, config.player_name);
+
+	gui_socket = gui_init(config.ui_server_port, config.ui_server);
 	prepare_server();
-	prepare_timer();
-	while(1) {
-		sleep(10);
-	}
+	//prepare_timer();
 }
 
 static void prepare_server() {
@@ -94,9 +112,6 @@ static void prepare_server() {
 	freeaddrinfo(addr_result);
 	server_socket = socket(PF_INET, SOCK_DGRAM, 0);
 	handle_error(server_socket, "client socket");
-	ret = sendto(server_socket, "asdf", 5, 0,
-			(struct sockaddr*)&server, sizeof(server));
-	handle_error(ret, "client write");
 }
 
 static void prepare_timer() {
@@ -131,8 +146,6 @@ static void prepare_timer() {
 	if (timer_create(CLOCK_REALTIME, &sev, &timerid) == -1)
 		die("timer_create");
 
-	printf("timer ID is 0x%lx\n", (long) timerid);
-
 	/* Start the timer */
 
 	its.it_value.tv_sec = TIMEOUT_NS / 1000000000;
@@ -150,4 +163,45 @@ static void prepare_timer() {
 static void handler(int UNUSED(sig), siginfo_t UNUSED(*si), void UNUSED(*uc)) {
 	printf("%ld\n", time(NULL));
 	printf("Timer fired!\n");
+}
+
+static void receive_messages() {
+	struct pollfd fds[2];
+	int ret;
+
+	fds[0].fd = server_socket;
+	fds[0].events = POLLIN | POLLHUP;
+	fds[1].fd = gui_socket;
+	fds[1].events = POLLIN;
+
+	while (true) {
+		fds[0].revents = 0;
+		fds[1].revents = 0;
+		ret = poll(fds, 2, -1);
+		handle_error(ret, "client poll");
+		if (ret > 0) {
+			if (fds[0].revents & POLLIN) {
+				read(fds[0].fd, buf, 100000);
+				printf("Received message from server: %s\n", buf);
+			}
+			if (fds[1].revents & POLLIN) {
+				ret = read(fds[1].fd, buf, 100000);
+				buf[ret] = 0;
+				if(ret == 0) {
+					printf("GUI disconnected\n");
+					break;
+				}
+				handle_gui_message(buf);
+			}
+		}
+	}
+}
+
+static void handle_gui_message(char *buf) {
+	if (!strcmp(buf, LEFT_KEY_UP) || !strcmp(buf, RIGHT_KEY_UP))
+		state.turn_direction = 0;
+	else if (!strcmp(buf, LEFT_KEY_DOWN))
+		state.turn_direction = -1;
+	else if (!strcmp(buf, RIGHT_KEY_DOWN))
+		state.turn_direction = 1;
 }

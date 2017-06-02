@@ -61,7 +61,6 @@ void parse_client_arguments(int argc, char * const argv[], struct client_config 
 
 static void get_host_port(const char *str, char *host, int *port)
 {
-	printf("get_host_port from %s\n", str);
 	char *buf = malloc(MAX_HOST_LENGTH);
 	char *buf_ptr = buf;
 	char *tmp;
