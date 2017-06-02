@@ -7,11 +7,11 @@
 
 static uint64_t state;
 
-void init_random(uint64_t seed) {
+void random_init(uint64_t seed) {
 	state = seed;
 }
 
-uint64_t get_random() {
+uint64_t random_get() {
 	uint64_t result = state;
 	state = state % RNG_MODULO;
 	state = (state * RNG_FACTOR) % RNG_MODULO;

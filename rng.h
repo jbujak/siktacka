@@ -4,8 +4,8 @@
 
 #include <stdint.h>
 
-void init_random(uint64_t seed);
+void random_init(uint64_t seed);
 
-uint64_t get_random();
+uint64_t random_get();
 
 #endif /* RNG_H */

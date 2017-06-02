@@ -5,7 +5,7 @@
 #include <stdbool.h>
 
 #ifdef __cplusplus
-extern "C" namespace jnp1 {
+extern "C" {
 #endif //__cplusplus
 
 	void map_new();

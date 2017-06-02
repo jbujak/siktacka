@@ -49,18 +49,19 @@ void parse_server_arguments(int argc, char * const argv[], struct server_config 
 
 void parse_client_arguments(int argc, char * const argv[], struct client_config *config) 
 {
-	if(argc < 2 || argc > 3)
+	if(argc < 3 || argc > 4)
 		die("Invalid number of parameters\nUsage: %s player_name game_server_host[:port] [ui_server_host[:port]]", argv[0]);
-	if(strlen(argv[1]) > MAX_HOST_LENGTH)
+	if(strlen(argv[2]) > MAX_HOST_LENGTH)
 		die("Game server host name too long");
 
-	get_host_port(argv[1], config->game_server, &(config->game_server_port));
-	if(argc == 3)
-		get_host_port(argv[2], config->ui_server, &(config->ui_server_port));
+	get_host_port(argv[2], config->game_server, &(config->game_server_port));
+	if(argc == 4)
+		get_host_port(argv[3], config->ui_server, &(config->ui_server_port));
 }
 
 static void get_host_port(const char *str, char *host, int *port)
 {
+	printf("get_host_port from %s\n", str);
 	char *buf = malloc(MAX_HOST_LENGTH);
 	char *buf_ptr = buf;
 	char *tmp;
