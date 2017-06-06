@@ -5,11 +5,11 @@ CLIENT_OBJS = map.o gui_client.o
 CLIENT_BIN = siktacka-client
 CLIENT_C = client.c
 
-SERVER_OBJS = map.o
+SERVER_OBJS = map.o event_queue.o server_msg_queue.o
 SERVER_BIN = siktacka-server
 SERVER_C = server.c
 
-COMMON_OBJS = parser.o err.o rng.o
+COMMON_OBJS = parser.o err.o rng.o timer.o
 
 all: $(CLIENT_BIN) $(SERVER_BIN)
 	ctags -R .

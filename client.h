@@ -8,10 +8,10 @@
 #define MAX_HOST_LENGTH 60
 
 struct client_config {
-	char player_name[MAX_NAME_LENGTH];
-	char game_server[MAX_HOST_LENGTH];
+	char player_name[MAX_NAME_LENGTH + 1];
+	char game_server[MAX_HOST_LENGTH + 1];
 	int game_server_port;
-	char ui_server[MAX_HOST_LENGTH];
+	char ui_server[MAX_HOST_LENGTH + 1];
 	int ui_server_port;
 };
 

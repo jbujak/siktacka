@@ -42,7 +42,7 @@ int gui_init(int port_num, const char *host) {
 	return sock;
 }
 
-void gui_new_game(int maxx, int maxy, int players_num, const char *players[]) {
+void gui_new_game(int maxx, int maxy, int players_num, char *players[]) {
 	char *buf_end = buf;
 	buf_end += sprintf(buf, "NEW_GAME %d %d ", maxx, maxy);
 	for(int i = 0; i < players_num; i++) {
@@ -52,12 +52,12 @@ void gui_new_game(int maxx, int maxy, int players_num, const char *players[]) {
 	send_buffer();
 }
 
-void gui_pixel(int x, int y, const char *player) {
+void gui_pixel(int x, int y, char *player) {
 	sprintf(buf, "PIXEL %d %d %s\n", x, y, player);
 	send_buffer();
 }
 
-void gui_eliminated(const char *player) {
+void gui_eliminated(char *player) {
 	sprintf(buf, "PLAYER_ELIMINATED %s\n", player);
 	send_buffer();
 }
@@ -65,6 +65,5 @@ void gui_eliminated(const char *player) {
 static void send_buffer() {
 	int ret;
 	ret = write(sock, buf, strlen(buf));
-	printf("%d\n", ret);
 	handle_error(ret, "gui_client write");
 }

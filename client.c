@@ -22,12 +22,13 @@
 #include "err.h"
 #include "gui_client.h"
 #include "parser.h"
+#include "timer.h"
 
 #define DEFAULT_GAME_SERVER_PORT 12345
 #define DEFAULT_UI_SERVER_NAME "localhost"
 #define DEFAULT_UI_SERVER_PORT 12346
 
-#define TIMEOUT_NS 3000000000
+#define TIMEOUT_NS 30000000
 #define USECS_PER_SEC 1000000
 
 #define LEFT_KEY_DOWN "LEFT_KEY_DOWN\n"
@@ -54,13 +55,21 @@ static int gui_socket;
 static int server_socket;
 struct sockaddr_in server;
 static char buf[1000000];
+static uint32_t current_game_id;
+static uint32_t maxx;
+static uint32_t maxy;
+static char *players[MAX_PLAYERS];
 
 static void init();
 static void prepare_server();
 static void handler(int sig, siginfo_t *si, void *uc);
-static void prepare_timer();
 static void receive_messages();
 static void handle_gui_message(char *buf);
+static void handle_server_message(void *buf, int len);
+static int process_event(struct event *event, void *end);
+static void process_new_game_event(struct new_game_event *event, int event_data_len);
+static void process_pixel_event(struct pixel_event *event);
+static void process_player_eliminated_event(struct player_eliminated_event *event);
 
 int main(int argc, char * const argv[]) {
 	parse_client_arguments(argc, argv, &config);
@@ -78,9 +87,13 @@ static void init() {
 	state.session_id += tv.tv_sec * USECS_PER_SEC;
 	strcpy(state.player_name, config.player_name);
 
+	for(int i = 0; i < MAX_PLAYERS; i++) {
+		players[i] = malloc(MAX_NAME_LENGTH);
+	}
+
 	gui_socket = gui_init(config.ui_server_port, config.ui_server);
 	prepare_server();
-	//prepare_timer();
+	timer_prepare(TIMEOUT_NS, handler);
 }
 
 static void prepare_server() {
@@ -100,7 +113,7 @@ static void prepare_server() {
 	addr_hints.ai_next = NULL;
 	ret = getaddrinfo(config.game_server, NULL, &addr_hints, &addr_result);
 	if(ret != 0) {
-		fprintf(stderr, "Unknown host\n");
+		fprintf(stderr, "Error in getaddrinfo: %s\n", gai_strerror(ret));
 		exit(EXIT_FAILURE);
 	}
 
@@ -114,55 +127,12 @@ static void prepare_server() {
 	handle_error(server_socket, "client socket");
 }
 
-static void prepare_timer() {
-	timer_t timerid;
-	struct sigevent sev;
-	struct itimerspec its;
-	sigset_t mask;
-	struct sigaction sa;
-	int ret;
-
-	/* Establish handler for timer signal */
-
-	sa.sa_flags = SA_SIGINFO;
-	sa.sa_sigaction = handler;
-	sigemptyset(&sa.sa_mask);
-	ret = sigaction(SIGRTMIN, &sa, NULL);
-	handle_error(ret, "sigaction");
-
-	/* Block timer signal temporarily */
-
-	printf("Blocking signal %d\n", SIGRTMIN);
-	sigemptyset(&mask);
-	sigaddset(&mask, SIGRTMIN);
-	if (sigprocmask(SIG_SETMASK, &mask, NULL) == -1)
-		die("sigprocmask");
-
-	/* Create the timer */
-
-	sev.sigev_notify = SIGEV_SIGNAL;
-	sev.sigev_signo = SIGRTMIN;
-	sev.sigev_value.sival_ptr = &timerid;
-	if (timer_create(CLOCK_REALTIME, &sev, &timerid) == -1)
-		die("timer_create");
-
-	/* Start the timer */
-
-	its.it_value.tv_sec = TIMEOUT_NS / 1000000000;
-	its.it_value.tv_nsec = TIMEOUT_NS % 1000000000;
-	its.it_interval.tv_sec = its.it_value.tv_sec;
-	its.it_interval.tv_nsec = its.it_value.tv_nsec;
-
-	if (timer_settime(timerid, 0, &its, NULL) == -1)
-		die("timer_settime");
-
-	if (sigprocmask(SIG_UNBLOCK, &mask, NULL) == -1)
-		die("sigprocmask");
-}
-
 static void handler(int UNUSED(sig), siginfo_t UNUSED(*si), void UNUSED(*uc)) {
-	printf("%ld\n", time(NULL));
-	printf("Timer fired!\n");
+	int flags = 0;
+	int ret;
+	ret = sendto(server_socket, &state, sizeof(state),
+			flags, (struct sockaddr*)&server, sizeof(server));
+	handle_error(ret, "client handler\n");
 }
 
 static void receive_messages() {
@@ -178,11 +148,11 @@ static void receive_messages() {
 		fds[0].revents = 0;
 		fds[1].revents = 0;
 		ret = poll(fds, 2, -1);
-		handle_error(ret, "client poll");
 		if (ret > 0) {
 			if (fds[0].revents & POLLIN) {
-				read(fds[0].fd, buf, 100000);
-				printf("Received message from server: %s\n", buf);
+				ret = read(fds[0].fd, buf, sizeof(buf));
+				handle_server_message(buf, ret);
+				buf[ret] = 0;
 			}
 			if (fds[1].revents & POLLIN) {
 				ret = read(fds[1].fd, buf, 100000);
@@ -205,3 +175,59 @@ static void handle_gui_message(char *buf) {
 	else if (!strcmp(buf, RIGHT_KEY_DOWN))
 		state.turn_direction = 1;
 }
+
+static void handle_server_message(void *buf, int len) {
+	struct server_msg *msg = (struct server_msg*) buf;
+	void *event_ptr = msg->events;
+	if (msg->game_id != current_game_id && ((struct event*)event_ptr)->event_type != NEW_GAME)
+		return; /* Ignore incorrect game_id */
+	while (event_ptr < buf + len) {
+		event_ptr += process_event(event_ptr, buf + len);
+	}
+}
+
+static int process_event(struct event *event, void *end) {
+	int total_event_len = event->len + sizeof(event->len) + sizeof(event->crc32);
+	int event_data_len = event->len - sizeof(event->event_no) - sizeof(event->event_type);
+	if ((void*)event + total_event_len > end)
+		return total_event_len;
+	switch (event->event_type) {
+		case NEW_GAME:
+			process_new_game_event(&event->event_data.new_game, event_data_len);
+			break;
+		case PIXEL:
+			process_pixel_event(&event->event_data.pixel);
+			break;
+		case PLAYER_ELIMINATED:
+			process_player_eliminated_event(&event->event_data.player_eliminated);
+			break;
+		case GAME_OVER:
+			printf("Game over\n");
+			break;
+	}
+	return total_event_len;
+}
+
+static void process_new_game_event(struct new_game_event *event, int event_data_len) {
+	printf("New game\n");
+	maxx = event->maxx;
+	maxy = event->maxy;
+	int i = 0;
+	char *player = event->players;
+	while((void*)player < (void*)event + event_data_len) {
+		player += sprintf(players[i], "%s", player);
+		player++;
+		i++;
+	}
+	gui_new_game(maxx, maxy, i, players);
+}
+
+static void process_pixel_event(struct pixel_event *event) {
+	printf("Pixel (%d, %d) of player %s\n", event->x, event->y, players[(int)event->player_number]);
+	gui_pixel(event->x, event->y, players[(int)event->player_number]);
+}
+
+static void process_player_eliminated_event(struct player_eliminated_event *event) {
+	gui_eliminated(players[(int)event->player_number]);
+}
+

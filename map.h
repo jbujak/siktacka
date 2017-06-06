@@ -1,12 +1,12 @@
-#ifndef STRDEQUE_H
-#define STRDEQUE_H
+#ifndef MAP_H
+#define MAP_H
 
 #include <stddef.h>
 #include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
-#endif //__cplusplus
+#endif /* __cplusplus */
 
 	void map_new();
 	void map_insert(int x, int y);
@@ -15,6 +15,6 @@ extern "C" {
 
 #ifdef __cplusplus
 }
-#endif //__cplusplus
+#endif /* __cplusplus */
 
-#endif
+#endif /* MAP_H */
