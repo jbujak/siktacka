@@ -1,5 +1,5 @@
 CFLAGS = -g -Wall -Wextra -O2 -std=c11
-CXXFLAGS = -g -Wall -Wextra -O2 -std=c++14 -lrt
+CXXFLAGS = -g -Wall -Wextra -O2 -std=c++14 -lrt -lz
 
 CLIENT_OBJS = map.o gui_client.o
 CLIENT_BIN = siktacka-client
@@ -15,11 +15,11 @@ all: $(CLIENT_BIN) $(SERVER_BIN)
 	ctags -R .
 
 $(CLIENT_BIN): $(CLIENT_OBJS) $(COMMON_OBJS) $(CLIENT_C)
-	gcc -c $(CLIENT_C) -o client.o
+	gcc -c $(CLFAGS) $(CLIENT_C) -o client.o
 	g++ $(CXXFLAGS) client.o $(CLIENT_OBJS) $(COMMON_OBJS) -o $(CLIENT_BIN)
 
 $(SERVER_BIN): $(SERVER_OBJS) $(COMMON_OBJS) $(SERVER_C)
-	gcc -c $(SERVER_C) -o server.o
+	gcc -c $(CFLAGS) $(SERVER_C) -o server.o
 	g++ $(CXXFLAGS) server.o $(SERVER_OBJS) $(COMMON_OBJS) -o $(SERVER_BIN)
 
 %.o: %.c %.h

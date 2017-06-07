@@ -55,10 +55,11 @@ static int gui_socket;
 static int server_socket;
 struct sockaddr_in server;
 static char buf[1000000];
-static uint32_t current_game_id;
+static uint32_t current_game_id = 0;
 static uint32_t maxx;
 static uint32_t maxy;
 static char *players[MAX_PLAYERS];
+static char *server_str;
 
 static void init();
 static void prepare_server();
@@ -70,9 +71,11 @@ static int process_event(struct event *event, void *end);
 static void process_new_game_event(struct new_game_event *event, int event_data_len);
 static void process_pixel_event(struct pixel_event *event);
 static void process_player_eliminated_event(struct player_eliminated_event *event);
+static void process_game_over_event();
 
 int main(int argc, char * const argv[]) {
 	parse_client_arguments(argc, argv, &config);
+	server_str = argv[2];
 	init();
 	receive_messages();
 
@@ -128,9 +131,14 @@ static void prepare_server() {
 }
 
 static void handler(int UNUSED(sig), siginfo_t UNUSED(*si), void UNUSED(*uc)) {
+	static struct client_msg msg;
 	int flags = 0;
 	int ret;
-	ret = sendto(server_socket, &state, sizeof(state),
+	msg.session_id = htobe64(state.session_id);
+	msg.turn_direction = state.turn_direction;
+	msg.next_expected_event_no = htobe32(state.next_expected_event_no);
+	strcpy(msg.player_name, state.player_name);
+	ret = sendto(server_socket, &msg, sizeof(msg),
 			flags, (struct sockaddr*)&server, sizeof(server));
 	handle_error(ret, "client handler\n");
 }
@@ -179,16 +187,27 @@ static void handle_gui_message(char *buf) {
 static void handle_server_message(void *buf, int len) {
 	struct server_msg *msg = (struct server_msg*) buf;
 	void *event_ptr = msg->events;
-	if (msg->game_id != current_game_id && ((struct event*)event_ptr)->event_type != NEW_GAME)
+	msg->game_id = be32toh(msg->game_id);
+	if (msg->game_id != current_game_id && ((struct event*)event_ptr)->event_type != NEW_GAME) {
+		printf("Ignoring -- incorrect game_id %d (expected %d)\n", msg->game_id, current_game_id);
 		return; /* Ignore incorrect game_id */
+	}
+	printf("Received message for game %d\n", msg->game_id);
 	while (event_ptr < buf + len) {
 		event_ptr += process_event(event_ptr, buf + len);
 	}
 }
 
 static int process_event(struct event *event, void *end) {
+	event->len = be32toh(event->len);
+	event->event_no = be32toh(event->event_no);
+	event->crc32 = be32toh(*(int*)((void*)event + sizeof(event->len) + event->len));
+	printf("Processing event %d\n", event->event_no);
 	int total_event_len = event->len + sizeof(event->len) + sizeof(event->crc32);
 	int event_data_len = event->len - sizeof(event->event_no) - sizeof(event->event_type);
+	if (event->event_no != state.next_expected_event_no)
+		return total_event_len;
+	state.next_expected_event_no++;
 	if ((void*)event + total_event_len > end)
 		return total_event_len;
 	switch (event->event_type) {
@@ -202,7 +221,7 @@ static int process_event(struct event *event, void *end) {
 			process_player_eliminated_event(&event->event_data.player_eliminated);
 			break;
 		case GAME_OVER:
-			printf("Game over\n");
+			process_game_over_event();
 			break;
 	}
 	return total_event_len;
@@ -210,8 +229,9 @@ static int process_event(struct event *event, void *end) {
 
 static void process_new_game_event(struct new_game_event *event, int event_data_len) {
 	printf("New game\n");
-	maxx = event->maxx;
-	maxy = event->maxy;
+	printf("current game id: %d\n", current_game_id);
+	maxx = be32toh(event->maxx);
+	maxy = be32toh(event->maxy);
 	int i = 0;
 	char *player = event->players;
 	while((void*)player < (void*)event + event_data_len) {
@@ -223,11 +243,16 @@ static void process_new_game_event(struct new_game_event *event, int event_data_
 }
 
 static void process_pixel_event(struct pixel_event *event) {
-	printf("Pixel (%d, %d) of player %s\n", event->x, event->y, players[(int)event->player_number]);
-	gui_pixel(event->x, event->y, players[(int)event->player_number]);
+	gui_pixel(be32toh(event->x), be32toh(event->y), players[(int)event->player_number]);
 }
 
 static void process_player_eliminated_event(struct player_eliminated_event *event) {
 	gui_eliminated(players[(int)event->player_number]);
+}
+
+static void process_game_over_event() {
+	printf("Game over\n");
+	current_game_id++;
+	state.next_expected_event_no = 0;
 }
 

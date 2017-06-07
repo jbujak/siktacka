@@ -14,7 +14,7 @@
 #define MAX_DATAGRAM_LENGTH 512
 #define MAX_EVENTS_LENGTH (MAX_DATAGRAM_LENGTH - 4)
 
-#define MAX_PLAYERS 42
+#define MAX_PLAYERS (42 * 2) /* 42 connected players + 42 disconnected, but still in game players */
 
 /* Directions */
 #define LEFT (-1)

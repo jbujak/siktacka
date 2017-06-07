@@ -1,28 +1,32 @@
 #include <deque>
+#include <cstdlib>
 
-#include "event_queue.h"
+#include "server_msg_queue.h"
 #include "server.h"
 
 extern "C" {
-	static  std::deque<struct server_msg_internal*> events;
+	static  std::deque<struct server_msg_internal*> messages;
 
 	void message_queue_new() {
-		events.clear();
+		for(struct server_msg_internal *msg: messages) {
+			free(msg);
+		}
+		messages.clear();
 	}
 
 	void message_insert(struct server_msg_internal* event) {
-		events.push_back(event);
+		messages.push_back(event);
 	}
 
 	struct server_msg_internal* message_get(int i) {
-		return events[i];
+		return messages[i];
 	}
 
 	int message_queue_size() {
-		return events.size();
+		return messages.size();
 	}
 
 	void message_remove() {
-		events.pop_front();
+		messages.pop_front();
 	}
 }

@@ -1,4 +1,5 @@
 #include <vector>
+#include <cstdlib>
 
 #include "event_queue.h"
 
@@ -6,6 +7,9 @@ extern "C" {
 	static  std::vector<struct event*> events;
 
 	void event_queue_new() {
+		for(struct event *event: events) {
+			free(event);
+		}
 		events.clear();
 	}
 
