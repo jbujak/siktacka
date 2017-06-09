@@ -1,5 +1,6 @@
 #define _DEFAULT_SOURCE
 #include <arpa/inet.h>
+#include <zlib.h>
 #include <ctype.h>
 #include <endian.h>
 #include <inttypes.h>
@@ -106,7 +107,7 @@ static void prepare_server() {
 
 	/* 'converting' host/port in string to struct addrinfo */
 	(void) memset(&addr_hints, 0, sizeof(struct addrinfo));
-	addr_hints.ai_family = AF_INET; /* IPv4 */
+	addr_hints.ai_family = AF_UNSPEC;
 	addr_hints.ai_socktype = SOCK_DGRAM;
 	addr_hints.ai_protocol = IPPROTO_UDP;
 	addr_hints.ai_flags = 0;
@@ -114,13 +115,15 @@ static void prepare_server() {
 	addr_hints.ai_addr = NULL;
 	addr_hints.ai_canonname = NULL;
 	addr_hints.ai_next = NULL;
-	ret = getaddrinfo(config.game_server, NULL, &addr_hints, &addr_result);
+	char port_str[10];
+	sprintf(port_str, "%d", config.game_server_port);
+	ret = getaddrinfo(config.game_server, port_str, &addr_hints, &addr_result);
 	if(ret != 0) {
 		fprintf(stderr, "Error in getaddrinfo: %s\n", gai_strerror(ret));
 		exit(EXIT_FAILURE);
 	}
 
-	server.sin_family = AF_INET; /* IPv4 */
+	server.sin_family = AF_INET;
 	server.sin_addr.s_addr =
 		((struct sockaddr_in*) (addr_result->ai_addr))->sin_addr.s_addr; /* address IP */
 	server.sin_port = htons((uint16_t) config.game_server_port);
@@ -187,6 +190,7 @@ static void handle_gui_message(char *buf) {
 static void handle_server_message(void *buf, int len) {
 	struct server_msg *msg = (struct server_msg*) buf;
 	void *event_ptr = msg->events;
+	int ret;
 	msg->game_id = be32toh(msg->game_id);
 	if (msg->game_id != current_game_id && ((struct event*)event_ptr)->event_type != NEW_GAME) {
 		printf("Ignoring -- incorrect game_id %d (expected %d)\n", msg->game_id, current_game_id);
@@ -194,17 +198,26 @@ static void handle_server_message(void *buf, int len) {
 	}
 	printf("Received message for game %d\n", msg->game_id);
 	while (event_ptr < buf + len) {
-		event_ptr += process_event(event_ptr, buf + len);
+		ret = process_event(event_ptr, buf + len);
+		if(ret == -1) return;
+		event_ptr += ret;
 	}
 }
 
 static int process_event(struct event *event, void *end) {
+	int len_to_checksum = be32toh(event->len) + sizeof(event->len);
+	uint32_t expected_checksum = crc32(0, (void*)event, len_to_checksum);
 	event->len = be32toh(event->len);
 	event->event_no = be32toh(event->event_no);
 	event->crc32 = be32toh(*(int*)((void*)event + sizeof(event->len) + event->len));
-	printf("Processing event %d\n", event->event_no);
 	int total_event_len = event->len + sizeof(event->len) + sizeof(event->crc32);
 	int event_data_len = event->len - sizeof(event->event_no) - sizeof(event->event_type);
+	uint32_t checksum = *(int*)((void*)event + event->len + sizeof(event->len));
+	checksum = be32toh(checksum);
+	if(checksum != expected_checksum) {
+		printf("Invalid checksum");
+		return -1;
+	}
 	if (event->event_no != state.next_expected_event_no)
 		return total_event_len;
 	state.next_expected_event_no++;

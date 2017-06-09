@@ -67,12 +67,18 @@ static void get_host_port(const char *str, char *host, int *port)
 	char *buf = malloc(MAX_HOST_LENGTH);
 	char *buf_ptr = buf;
 	char *tmp;
-	if(strnlen(str, MAX_HOST_LENGTH + 1) > MAX_HOST_LENGTH)
+	int colon_count = 0;
+	if (strnlen(str, MAX_HOST_LENGTH + 1) > MAX_HOST_LENGTH)
 		die("Host name too long");
 	strcpy(buf, str);
+	for (int i = 0; buf[i]; i++) if(buf[i] == ':') colon_count++;
+	if(colon_count >= 2) {/* IPv6 */
+		strcpy(host, buf);
+		return;
+	}
 	tmp = strsep(&buf, ":");
 	strcpy(host, tmp);
-	if(buf != NULL)
+	if (buf != NULL)
 		*port = get_port(buf);
 
 	free(buf_ptr);

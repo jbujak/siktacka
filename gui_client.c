@@ -19,11 +19,11 @@ static void send_buffer();
 int gui_init(int port_num, const char *host) {
 	struct addrinfo addr_hints;
 	struct addrinfo *addr_result;
-	char *port_str = malloc(20);
+	char port_str[20];
 	int ret;
 
 	memset(&addr_hints, 0, sizeof(struct addrinfo));
-	addr_hints.ai_family = AF_INET; // IPv4
+	addr_hints.ai_family = AF_UNSPEC;
 	addr_hints.ai_socktype = SOCK_STREAM;
 	addr_hints.ai_protocol = IPPROTO_TCP;
 	sprintf(port_str, "%d", port_num);

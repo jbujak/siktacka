@@ -28,6 +28,7 @@
 #define GAME_OVER 3
 
 #define UNUSED(x) x __attribute__((unused))
+#define TRY(x) {int _try_x = x; if(_try_x != 0) return _try_x;}
 
 struct __attribute__((__packed__)) client_msg {
 	uint64_t session_id;

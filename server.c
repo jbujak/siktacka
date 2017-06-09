@@ -93,7 +93,6 @@ static void send_message();
 static void sort_clients();
 static int cmp_players(struct client_data *player_1, struct client_data *player_2);
 static void process_turn();
-static uint32_t calculate_checksum(int len, void* data);
 static void end_game();
 static void disonnect_inactive();
 static void eliminate_player(int player_number);
@@ -361,7 +360,8 @@ static struct event* create_new_game_event(uint32_t maxx, uint32_t maxy, int pla
 		players_len;
 	result->len = htobe32(len);
 	int len_to_checksum = len + sizeof(result->len);
-	*(int*)((void*)result + len_to_checksum) = htobe32(calculate_checksum(len_to_checksum, result));
+	*(int*)((void*)result + len_to_checksum) = htobe32(crc32(0, (void*)result, len_to_checksum));
+	printf("checksum %lu\n", crc32(0, (void*)result, len_to_checksum));
 
 	create_messages_for_event(result);
 	event_insert(result);
@@ -383,7 +383,7 @@ static struct event* create_pixel_event(char player_number, uint32_t x, uint32_t
 		sizeof(result->event_data.pixel.y);
 	result->len = htobe32(len);
 	int len_to_checksum = len + sizeof(result->len);
-	*(int*)((void*)result + len_to_checksum) = htobe32(calculate_checksum(len_to_checksum, result));
+	*(int*)((void*)result + len_to_checksum) = htobe32(crc32(0, (void*)result, len_to_checksum));
 
 	event_insert(result);
 	create_messages_for_event(result);
@@ -401,7 +401,7 @@ static struct event* create_player_eliminated_event(char player_number) {
 		sizeof(result->event_data.player_eliminated.player_number);
 	result->len = htobe32(len);
 	int len_to_checksum = len + sizeof(result->len);
-	*(int*)((void*)result + len_to_checksum) = htobe32(calculate_checksum(len_to_checksum, result));
+	*(int*)((void*)result + len_to_checksum) = htobe32(crc32(0, (void*)result, len_to_checksum));
 
 	event_insert(result);
 	create_messages_for_event(result);
@@ -417,7 +417,7 @@ static struct event* create_game_over_event() {
 		sizeof(result->event_type);
 	result->len = htobe32(len);
 	int len_to_checksum = len + sizeof(result->len);
-	*(int*)((void*)result + len_to_checksum) = htobe32(calculate_checksum(len_to_checksum, result));
+	*(int*)((void*)result + len_to_checksum) = htobe32(crc32(0, (void*)result, len_to_checksum));
 
 	event_insert(result);
 	create_messages_for_event(result);
@@ -473,11 +473,6 @@ static void create_messages_for_events(struct sockaddr_in address, int beg, int 
 	} else {
 		free(current_msg);
 	}
-}
-
-static uint32_t calculate_checksum(int UNUSED(len), void UNUSED(*data)) {
-	/* TODO */
-	return 1234567890;
 }
 
 static void handler(int UNUSED(sig), siginfo_t UNUSED(*si), void UNUSED(*uc)) {
