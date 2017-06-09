@@ -192,10 +192,11 @@ static void handle_server_message(void *buf, int len) {
 	void *event_ptr = msg->events;
 	int ret;
 	msg->game_id = be32toh(msg->game_id);
-	if (msg->game_id != current_game_id && ((struct event*)event_ptr)->event_type != NEW_GAME) {
+	if (current_game_id != 0 && msg->game_id < current_game_id && ((struct event*)event_ptr)->event_type != NEW_GAME) {
 		printf("Ignoring -- incorrect game_id %d (expected %d)\n", msg->game_id, current_game_id);
 		return; /* Ignore incorrect game_id */
 	}
+	current_game_id = msg->game_id;
 	printf("Received message for game %d\n", msg->game_id);
 	while (event_ptr < buf + len) {
 		ret = process_event(event_ptr, buf + len);
@@ -242,9 +243,9 @@ static int process_event(struct event *event, void *end) {
 
 static void process_new_game_event(struct new_game_event *event, int event_data_len) {
 	printf("New game\n");
-	printf("current game id: %d\n", current_game_id);
 	maxx = be32toh(event->maxx);
 	maxy = be32toh(event->maxy);
+	if(maxx == 0 || maxy == 0) die("Incorrect dimensions");
 	int i = 0;
 	char *player = event->players;
 	while((void*)player < (void*)event + event_data_len) {
@@ -252,6 +253,7 @@ static void process_new_game_event(struct new_game_event *event, int event_data_
 		player++;
 		i++;
 	}
+	if((void*)player > (void*)event + event_data_len) die("Incorrect players");
 	gui_new_game(maxx, maxy, i, players);
 }
 

@@ -169,6 +169,10 @@ static void handle_client_message(struct sockaddr_in *address, socklen_t addr_le
 	msg->session_id = be64toh(msg->session_id);
 	int client_index = -1;
 	for(int i = 0; i < MAX_PLAYERS; i++) {
+		if (clients[i] != NULL && !clients[i]->connected && !clients[i]->alive) {
+			free(clients[i]);
+			clients[i] = NULL;
+		}
 		if (clients[i] != NULL && addresses_equal(&clients[i]->address, address)) {
 			already_connected = true;
 			client_index = i;
@@ -177,6 +181,7 @@ static void handle_client_message(struct sockaddr_in *address, socklen_t addr_le
 				return; /* ignore message if session_id is smaller than current */
 			}
 		} else if (clients[i] != NULL && strcmp(clients[i]->player_name, msg->player_name) == 0) {
+			printf("Existing name from another socket\n");
 			return; /* ignore message if existing name is received from another socket */
 		}
 	}

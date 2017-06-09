@@ -21,7 +21,7 @@ static uint64_t get_number64(const char *str, const char *what);
 void parse_server_arguments(int argc, char * const argv[], struct server_config *config)
 {
 	int opt;
-	while ((opt = getopt(argc, argv, "W:H:p:s:t:r:")) != -1) {
+	while ((opt = getopt(argc, argv, "-W:H:p:s:t:r:")) != -1) {
 		switch (opt) {
 		case 'W':
 			config->width = get_positive(optarg, "width");
@@ -108,7 +108,6 @@ static int get_number(const char *str, const char *what)
 	if (*endptr != '\0' || errno != 0)
 		die("Incorrect %s value", what);
 	return number;
-
 }
 
 static uint64_t get_number64(const char *str, const char *what)
@@ -119,5 +118,4 @@ static uint64_t get_number64(const char *str, const char *what)
 	if (*endptr != '\0' || errno != 0)
 		die("Incorrect %s value", what);
 	return number;
-
 }
