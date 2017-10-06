@@ -130,7 +130,7 @@ static void main_loop() {
 	struct client_msg msg;
 	struct sockaddr_in client;
 	socklen_t client_len = sizeof(client);
-	int msg_len;
+	unsigned int msg_len;
 	int ret;
 	int flags = 0;
 	struct pollfd fds[1];
@@ -152,7 +152,9 @@ static void main_loop() {
 			if (fds[0].revents & POLLIN) {
 				msg_len = recvfrom(sock, &msg, sizeof(msg), flags,
 						(struct sockaddr*)&client, &client_len);
-				if(msg_len == sizeof(msg)) {
+				if(msg_len > sizeof(msg.turn_direction) + sizeof(msg.next_expected_event_no) +
+						sizeof(msg.session_id)) {
+					*(char*)((void*)&msg + msg_len) = 0;
 					handle_client_message(&client, client_len, &msg);
 				}
 			}
@@ -177,20 +179,16 @@ static void handle_client_message(struct sockaddr_in *address, socklen_t addr_le
 			already_connected = true;
 			client_index = i;
 			if (clients[i]->session_id > msg->session_id) {
-				printf("Smaller session_id\n");
 				return; /* ignore message if session_id is smaller than current */
 			}
 		} else if (clients[i] != NULL && strcmp(clients[i]->player_name, msg->player_name) == 0) {
-			printf("Existing name from another socket\n");
 			return; /* ignore message if existing name is received from another socket */
 		}
 	}
 	if (already_connected && clients[client_index]->session_id < msg->session_id) {
-		printf("Reconnect\n");
 		disconnect_client(address);
 		client_index = connect_client(address, addr_len);
 	} else if (!already_connected && number_of_clients < MAX_PLAYERS) {
-		printf("Connect\n");
 		client_index = connect_client(address, addr_len);
 		strcpy(clients[client_index]->player_name, msg->player_name);
 		if(*msg->player_name) {
@@ -238,7 +236,6 @@ static int connect_client(struct sockaddr_in *address, socklen_t addr_len) {
 }
 
 static void disconnect_client(struct sockaddr_in *address) {
-	printf("Disconnect\n");
 	int index = -1;
 	struct client_data *client = NULL;
 	for (int i = 0; i < MAX_PLAYERS; i++) {
@@ -264,11 +261,11 @@ static void disconnect_client(struct sockaddr_in *address) {
 }
 
 static void start_game() {
-	printf("Start game\n");
 	state = RUNNING;
 	event_no = 0;
-	game_id++;
+	game_id = random_get();
 	map_new();
+	event_queue_new();
 	sort_clients();
 	const char *names[MAX_PLAYERS];
 	for (int i = 0; i < number_of_active_players; i++) {
@@ -282,7 +279,6 @@ static void start_game() {
 		clients[i]->direction = random_get() % 360;
 		clients[i]->alive = true;
 		if (map_contains(clients[i]->x, clients[i]->y)) {
-			printf("Died during start\n");
 			eliminate_player(i);
 		} else {
 			map_insert(clients[i]->x, clients[i]->y);
@@ -292,9 +288,7 @@ static void start_game() {
 }
 
 static void end_game() {
-	printf("End game\n");
 	create_game_over_event();
-	event_queue_new();
 	for(int i = 0; i < MAX_PLAYERS; i++) {
 		if(clients[i] != NULL) {
 			clients[i]->observer = (*clients[i]->player_name == 0);
@@ -314,13 +308,12 @@ static void process_turn() {
 		clients[i]->direction += clients[i]->turn_direction * config.turning_speed;
 		double old_x = clients[i]->x;
 		double old_y = clients[i]->y;
-		clients[i]->x += sin((clients[i]->direction * M_PI) / 180);
-		clients[i]->y += cos((clients[i]->direction * M_PI) / 180);
+		clients[i]->y += sin((clients[i]->direction * M_PI) / 180);
+		clients[i]->x += cos((clients[i]->direction * M_PI) / 180);
 		if ((int)old_x == (int)clients[i]->x && (int)old_y == (int)clients[i]->y) continue;
 		if (map_contains(clients[i]->x, clients[i]->y) || clients[i]->x < 0 ||
 				clients[i]->x >= config.width || clients[i]->y >= config.height ||
 				clients[i]->y < 0) {
-			printf("Died during game\n");
 			eliminate_player(i);
 		} else {
 			map_insert(clients[i]->x, clients[i]->y);
@@ -341,7 +334,6 @@ static void disonnect_inactive() {
 
 static struct event* create_new_game_event(uint32_t maxx, uint32_t maxy, int players_num,
 		const char *players[]) {
-	printf("Creating new game event\n");
 	struct event *result = malloc(sizeof(struct event));
 	if(result == NULL) die("Insufficient memory");
 	int ret;
@@ -366,7 +358,6 @@ static struct event* create_new_game_event(uint32_t maxx, uint32_t maxy, int pla
 	result->len = htobe32(len);
 	int len_to_checksum = len + sizeof(result->len);
 	*(int*)((void*)result + len_to_checksum) = htobe32(crc32(0, (void*)result, len_to_checksum));
-	printf("checksum %lu\n", crc32(0, (void*)result, len_to_checksum));
 
 	create_messages_for_event(result);
 	event_insert(result);

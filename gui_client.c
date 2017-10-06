@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <netinet/tcp.h>
 #include <unistd.h>
 
 #include "err.h"
@@ -34,6 +35,10 @@ int gui_init(int port_num, const char *host) {
 	sock = socket(addr_result->ai_family,
 			addr_result->ai_socktype, addr_result->ai_protocol);
 	handle_error(sock, "gui_prepare socket");
+
+	 int flag = 1;
+         ret = setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+	 handle_error(ret, "gui_prepare setsockopt");
 
 	ret = connect(sock, addr_result->ai_addr, addr_result->ai_addrlen);
 	handle_error(ret, "gui_prepare connect");

@@ -31,3 +31,4 @@ $(SERVER_BIN): $(SERVER_OBJS) $(COMMON_OBJS) $(SERVER_C)
 clean:
 	-rm -f *.o
 	-rm -f $(CLIENT_BIN) $(SERVER_BIN)
+	-rm -f tags
